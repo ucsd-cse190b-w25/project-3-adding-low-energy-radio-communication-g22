@@ -21,7 +21,13 @@
 //#include "ble_commands.h"
 #include "ble.h"
 
+#include "timer.h"
+#include "i2c.h"
+#include "lsm6dsl.h"
+
+
 #include <stdlib.h>
+#include <stdbool.h>
 
 int dataAvailable = 0;
 
@@ -30,6 +36,15 @@ SPI_HandleTypeDef hspi3;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI3_Init(void);
+
+
+volatile int16_t counter1 = 0;
+volatile bool isLost = false;
+// change mins to seconds
+volatile int8_t seconds = 0;
+volatile int8_t prevSecond = -1;
+
+
 
 /**
   * @brief  The application entry point.
@@ -54,20 +69,48 @@ int main(void)
 
   ble_init();
 
+  i2c_init();
+  lsm6dsl_init();
+  timer_init(TIM2);
+
   HAL_Delay(10);
 
   uint8_t nonDiscoverable = 0;
 
   while (1)
   {
+
 	  if(!nonDiscoverable && HAL_GPIO_ReadPin(BLE_INT_GPIO_Port,BLE_INT_Pin)){
-	    catchBLE();
-	  }else{
-		  HAL_Delay(1000);
-		  // Send a string to the NORDIC UART service, remember to not include the newline
-		  unsigned char test_str[] = "youlostit BLE test";
-		  updateCharValue(NORDIC_UART_SERVICE_HANDLE, READ_CHAR_HANDLE, 0, sizeof(test_str)-1, test_str);
+	  		    catchBLE();
+	  	}
+	  if(!isLost) {
+//		  discoveraiblity is false
+		  disconnectBLE();
+		  setDiscoverability(0);
+
 	  }
+
+	  if (isLost){
+		  setDiscoverability(1);
+//		  set disoveraibiltihut back to true
+//			  use own timer...to count up.
+//			  HAL_Delay(1000); // should i pass in 10000?
+//			  maybe use a variable to keep track of previous second and see if it changed
+			  // Send a string to the NORDIC UART service, remember to not include the newline
+//			  pass in a value for <N>
+//			  unsigned char test_str[30]; // Ensure it's large enough
+//			    sprintf((char*)test_str, "AK missing %d seconds", seconds);
+			  unsigned char test_str[20];
+			  snprintf((char *)test_str, sizeof(test_str) - 1, "AK: Lost %d", seconds);
+			  test_str[sizeof(test_str) - 1] = '\0'; // Ensure null termination
+
+
+			  if (prevSecond != seconds){
+				  updateCharValue(NORDIC_UART_SERVICE_HANDLE, READ_CHAR_HANDLE, 0, strlen((char *)test_str), test_str);
+	 			  prevSecond = seconds;
+			  }
+	  }
+
 	  // Wait for interrupt, only uncomment if low power is needed
 	  //__WFI();
   }
@@ -117,6 +160,44 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+
+
+void TIM2_IRQHandler()
+{
+	if(TIM2->SR & TIM_SR_UIF){
+	    TIM2->SR &= ~TIM_SR_UIF;
+
+	    int16_t x = 0;
+	    int16_t y = 0;
+	    int16_t z = 0;
+	    lsm6dsl_read_xyz(&x, &y, &z);
+	    int magnitude = (int32_t)(x*x) + (int32_t)(y*y) + (int32_t)(z*z);
+	    if(magnitude <= 1200119301){  //1000119301
+	    	counter1+=1;
+	    }
+	    else{
+	    	counter1 = 0;
+	    	seconds = 0;
+	    	prevSecond = -1;
+	    	isLost = false;
+	    }
+
+		  if (counter1 >= 1200 && counter1 %1200 == 0){ //1200
+			  isLost = true;
+		  }
+		  if (isLost && (counter1-1200) %200 == 0) {
+			  seconds = (counter1-1200)/20;
+		  }
+//		  if (counter1 >= 500 && counter1 %500 == 0){ //1200
+//			  isLost = true;
+//		  }
+//		  if (isLost && (counter1-1200) %200 == 0) {
+//			  seconds = (counter1-1200)/200;
+//		  }
+	}
+
 }
 
 /**
@@ -233,6 +314,9 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
+
+
+
 
 #ifdef  USE_FULL_ASSERT
 /**
