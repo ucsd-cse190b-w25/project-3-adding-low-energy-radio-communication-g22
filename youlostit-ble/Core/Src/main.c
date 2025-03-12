@@ -88,6 +88,8 @@ int main(void)
 		  disconnectBLE();
 		  setDiscoverability(0);
 
+      //when non-discoverable, shut down BLE radio
+      standbyBLE();
 	  }
 
 	  if (isLost){
@@ -110,9 +112,26 @@ int main(void)
 	 			  prevSecond = seconds;
 			  }
 	  }
-
-	  // Wait for interrupt, only uncomment if low power is needed
+    // Wait for interrupt, only uncomment if low power is needed
 	  //__WFI();
+
+
+    // TODO Clear LPMS bits to set them to "000” (Stop mode)
+    PWR->CR1 &= ~PWR_CR1_LPMS_Msk;   // Clears only the LPMS bits
+    PWR->CR1 |= PWR_CR1_LPMS_STOP0;  // Sets STOP 0 mode
+
+    // Prepare to enter deep sleep mode (Stop mode)
+    // Set the SLEEPDEEP bit in the System Control Register
+    SCB_SCR |= SCR_SLEEPDEEP_Msk;
+
+    // Execute the Wait-For-Interrupt instruction.
+    // This puts the CPU into deep sleep mode until an interrupt occurs.
+    __asm volatile ("wfi"); // same as __WFI();
+
+    // After waking up, clear the SLEEPDEEP bit if you plan to return to a lighter sleep mode
+    SCB_SCR &= ~SCR_SLEEPDEEP_Msk;
+
+    // Optionally reconfigure clocks or perform wake-up tasks here
   }
 }
 
@@ -140,7 +159,11 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   // This lines changes system clock frequency
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_7;
+  // RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_7;
+
+  //changed systemClock
+  // RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
+
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {

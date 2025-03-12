@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "lsm6dsl.h": "c",
+        "timer.h": "c",
+        "stm32l475xx.h": "c",
+        "ble.h": "c"
+    }
+}
