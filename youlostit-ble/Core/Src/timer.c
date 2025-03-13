@@ -29,7 +29,9 @@
  
    //2. set timer to auto-reload when reach max
  
-   timer_set_ms(timer, 49);
+  //  timer_set_ms(timer, 49);
+
+   timer_set_ms(timer, 9999);  //interrupt every 10 seconds
  
    //3. Enable the timer’s interrupt both internally and in the interrupt controller (NVIC)
    NVIC_EnableIRQ(TIM2_IRQn);

@@ -122,14 +122,18 @@ int main(void)
 
     // Prepare to enter deep sleep mode (Stop mode)
     // Set the SLEEPDEEP bit in the System Control Register
-    SCB_SCR |= SCR_SLEEPDEEP_Msk;
+    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+
+    HAL_SuspendTick(); // Stop the HAL tick timer
 
     // Execute the Wait-For-Interrupt instruction.
     // This puts the CPU into deep sleep mode until an interrupt occurs.
     __asm volatile ("wfi"); // same as __WFI();
 
+    HAL_ResumeTick(); // Restart the HAL tick timer
+
     // After waking up, clear the SLEEPDEEP bit if you plan to return to a lighter sleep mode
-    SCB_SCR &= ~SCR_SLEEPDEEP_Msk;
+    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
 
     // Optionally reconfigure clocks or perform wake-up tasks here
   }
@@ -159,7 +163,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   // This lines changes system clock frequency
-  // RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_7;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_7;
 
   //changed systemClock
   // RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
@@ -187,7 +191,7 @@ void SystemClock_Config(void)
 
 
 
-void TIM2_IRQHandler()
+void TIM2_IRQHandler()   //changed to fire once every 10 seconds
 {
 	if(TIM2->SR & TIM_SR_UIF){
 	    TIM2->SR &= ~TIM_SR_UIF;
@@ -207,11 +211,18 @@ void TIM2_IRQHandler()
 	    	isLost = false;
 	    }
 
-		  if (counter1 >= 1200 && counter1 %1200 == 0){ //1200
+		  // if (counter1 >= 1200 && counter1 %1200 == 0){ //1200
+			//   isLost = true;
+		  // }
+		  // if (isLost && (counter1-1200) %200 == 0) {
+			//   seconds = (counter1-1200)/20;
+		  // }
+
+      if (counter1 >= 6){   //every 10 seconds
 			  isLost = true;
 		  }
-		  if (isLost && (counter1-1200) %200 == 0) {
-			  seconds = (counter1-1200)/20;
+		  if (isLost) {
+			  seconds = counter1*10;
 		  }
 //		  if (counter1 >= 500 && counter1 %500 == 0){ //1200
 //			  isLost = true;
