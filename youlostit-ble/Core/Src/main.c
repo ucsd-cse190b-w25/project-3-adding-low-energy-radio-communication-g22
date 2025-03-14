@@ -41,8 +41,8 @@ static void MX_SPI3_Init(void);
 volatile int16_t counter1 = 0;
 volatile bool isLost = false;
 // change mins to seconds
-volatile int8_t seconds = 0;
-volatile int8_t prevSecond = -1;
+volatile int32_t seconds = 0;
+volatile int32_t prevSecond = -1;
 
 
 
@@ -87,9 +87,7 @@ int main(void)
 //		  discoveraiblity is false
 		  disconnectBLE();
 		  setDiscoverability(0);
-
-      //when non-discoverable, shut down BLE radio
-      standbyBLE();
+	      standbyBle();
 	  }
 
 	  if (isLost){
@@ -112,30 +110,42 @@ int main(void)
 	 			  prevSecond = seconds;
 			  }
 	  }
-    // Wait for interrupt, only uncomment if low power is needed
+
+	  else{
+
+	  // Wait for interrupt, only uncomment if low power is needed
 	  //__WFI();
 
 
-    // TODO Clear LPMS bits to set them to "000” (Stop mode)
-    PWR->CR1 &= ~PWR_CR1_LPMS_Msk;   // Clears only the LPMS bits
-    PWR->CR1 |= PWR_CR1_LPMS_STOP0;  // Sets STOP 0 mode
+//		// to get this to work, need extI from accel.
+//	    // TODO Clear LPMS bits to set them to "000” (Stop mode)
+//	    PWR->CR1 &= ~PWR_CR1_LPMS_Msk;   // Clears only the LPMS bits
+//	    PWR->CR1 |= PWR_CR1_LPMS_STOP0;  // Sets STOP 0 mode
 
-    // Prepare to enter deep sleep mode (Stop mode)
-    // Set the SLEEPDEEP bit in the System Control Register
-    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+//		less power efficient, but can use something other than stop0
+			PWR->CR1 &= ~PWR_CR1_LPR_Msk;
+		PWR->CR1 |= PWR_CR1_LPR;
 
-    HAL_SuspendTick(); // Stop the HAL tick timer
+	    // Prepare to enter deep sleep mode (Stop mode)
+	    // Set the SLEEPDEEP bit in the System Control Register
+//	    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
 
-    // Execute the Wait-For-Interrupt instruction.
-    // This puts the CPU into deep sleep mode until an interrupt occurs.
-    __asm volatile ("wfi"); // same as __WFI();
+	    HAL_SuspendTick(); // Stop the HAL tick timer
 
-    HAL_ResumeTick(); // Restart the HAL tick timer
+	    // Execute the Wait-For-Interrupt instruction.
+	    // This puts the CPU into deep sleep mode until an interrupt occurs.
+	    __asm volatile ("wfi"); // same as __WFI();
 
-    // After waking up, clear the SLEEPDEEP bit if you plan to return to a lighter sleep mode
-    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
+	    HAL_ResumeTick(); // Restart the HAL tick timer
 
-    // Optionally reconfigure clocks or perform wake-up tasks here
+	    // After waking up, clear the SLEEPDEEP bit if you plan to return to a lighter sleep mode
+//	    SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
+
+//	    external interrupt from accelerometer
+//	    accelermeter can trigger interrupt. wake up when value changes.
+
+//	    lsi or lse we can use stop? bc those run all the time?
+	  }
   }
 }
 
@@ -165,8 +175,7 @@ void SystemClock_Config(void)
   // This lines changes system clock frequency
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_7;
 
-  //changed systemClock
-  // RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
+//  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_5;
 
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -188,7 +197,6 @@ void SystemClock_Config(void)
     Error_Handler();
   }
 }
-
 
 
 void TIM2_IRQHandler()   //changed to fire once every 10 seconds
@@ -221,9 +229,10 @@ void TIM2_IRQHandler()   //changed to fire once every 10 seconds
       if (counter1 >= 6){   //every 10 seconds
 			  isLost = true;
 		  }
-		  if (isLost) {
-			  seconds = counter1*10;
-		  }
+      seconds = counter1*10;
+//		  if (isLost) {
+//			  seconds = counter1*10;
+//		  }
 //		  if (counter1 >= 500 && counter1 %500 == 0){ //1200
 //			  isLost = true;
 //		  }
@@ -233,6 +242,7 @@ void TIM2_IRQHandler()   //changed to fire once every 10 seconds
 	}
 
 }
+
 
 /**
   * @brief SPI3 Initialization Function
